@@ -57,6 +57,8 @@ public class SecurityConfig {
         var configuration = new org.springframework.web.cors.CorsConfiguration();
         configuration.addAllowedOrigin("http://localhost:3000");
         configuration.addAllowedOrigin("http://127.0.0.1:3000");
+        configuration.addAllowedOrigin("https://end-term-spring-git-sam-final-samarthpd-21s-projects.vercel.app");
+        configuration.addAllowedOriginPattern("https://*.vercel.app");
         configuration.addAllowedMethod("*");
         configuration.addAllowedHeader("*");
         configuration.setAllowCredentials(true);
