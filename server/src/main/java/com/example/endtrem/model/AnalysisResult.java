@@ -93,8 +93,21 @@ public class AnalysisResult {
         private List<LearningRecommendation> skillsToLearn;
         private List<LearningRecommendation> skillsToImprove;
         private List<LearningRecommendation> practiceMore;
+        private List<EngineeringHabitRecommendation> engineeringHabitsToImprove;
         private List<String> careerAdvice;
         private String nextMilestone;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EngineeringHabitRecommendation {
+        private String habit; // testing, documentation, ci_cd, code_structure, error_handling
+        private String currentState;
+        private String targetState;
+        private List<String> actionItems;
+        private int priority;
     }
     
     @Data
@@ -107,10 +120,22 @@ public class AnalysisResult {
         private List<String> primaryFrameworks;
         private List<String> projectTypes;
         private String specialization;
+        private CodingStyleAssessment codingStyleAssessment;
         private Map<String, Integer> skillDistribution;
         private List<String> strengths;
         private List<String> areasForGrowth;
         private String careerStage; // entry, junior, mid, senior, lead
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CodingStyleAssessment {
+        private String style; // Engineering-Focused, Balanced, Rapid Prototyper
+        private List<String> strengths;
+        private List<String> areasToImprove;
+        private String professionalFeedback;
     }
     
     @Data

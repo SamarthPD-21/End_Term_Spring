@@ -3,9 +3,7 @@ package com.example.endtrem.service;
 import com.example.endtrem.config.OpenAIConfig;
 import com.example.endtrem.dto.AggregatedProfileDTO;
 import com.example.endtrem.model.AnalysisResult;
-import com.example.endtrem.model.PromptTemplate;
 import com.example.endtrem.model.RepoSummary;
-import com.example.endtrem.repository.PromptTemplateRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,7 +21,6 @@ public class AIService {
     
     private final WebClient openAIWebClient;
     private final OpenAIConfig openAIConfig;
-    private final PromptTemplateRepository promptTemplateRepository;
     private final ObjectMapper objectMapper;
     
     /**
@@ -81,6 +78,7 @@ public class AIService {
     
     /**
      * Analyze aggregated profile and generate skill analysis with enhanced recommendations
+     * Now includes pre-parsed README data with vibe coding analysis
      */
     public AnalysisResult analyzeProfile(AggregatedProfileDTO profile) {
         String profileJson;
@@ -91,41 +89,58 @@ public class AIService {
         }
         
         String prompt = String.format("""
-            You are an expert developer career advisor. Analyze this developer's GitHub profile summary and provide a comprehensive skill assessment.
+            You are an expert developer career advisor. Analyze this developer's GitHub profile which has been pre-analyzed by our non-AI parsing pipeline.
             
-            Developer Profile:
+            The profile contains:
+            - Tech stack extracted from READMEs (languages, frameworks, databases, infrastructure, auth)
+            - Engineering discipline metrics (testing, CI/CD, documentation quality)
+            - Coding style analysis (structured vs rapid prototyping approach)
+            - Per-repository snapshots with complexity and feature depth
+            
+            Developer Profile Data:
             %s
             
-            IMPORTANT: Categorize recommendations into THREE types:
-            1. "learn_new" - Skills the developer should START learning (not seen in their projects)
-            2. "improve_existing" - Skills they have but should DEEPEN (seen but at basic/moderate level)
+            IMPORTANT CONTEXT FROM PRE-ANALYSIS:
+            1. "vibeCodingMetrics.avgVibeScore" indicates coding style (0-100, higher = more rapid prototyping, lower = more structured)
+            2. "engineeringMetrics" shows testing, CI/CD, documentation habits
+            3. "repoSnapshots" gives per-project breakdown
+            4. "potentialGaps" are skill gaps detected by pattern matching
+            
+            CATEGORIZE RECOMMENDATIONS INTO THREE TYPES:
+            1. "learn_new" - Skills the developer should START learning (not in their projects)
+            2. "improve_existing" - Skills they have but should DEEPEN (seen but basic/moderate)
             3. "practice_more" - Skills they're good at but need more REAL-WORLD practice
+            
+            CODING STYLE FEEDBACK RULES:
+            - If avgVibeScore >= 60: Suggest improving documentation, testing, and project structure
+            - If avgVibeScore <= 40: Acknowledge strong engineering practices, suggest learning new technologies
+            - NEVER say "vibe coder" - instead use phrases like "rapid prototyping approach" or "move-fast mindset"
             
             Respond with ONLY valid JSON in this exact format:
             {
                 "skillAnalysis": {
                     "strongSkills": [
-                        {"name": "skill name", "category": "language|framework|tool|concept|methodology", "proficiencyScore": 80, "evidence": "why this is strong", "projectCount": 5, "trend": "improving|stable|declining"}
+                        {"name": "skill", "category": "language|framework|tool|concept|methodology", "proficiencyScore": 80, "evidence": "why strong", "projectCount": 5, "trend": "improving|stable|declining"}
                     ],
                     "moderateSkills": [
-                        {"name": "skill name", "category": "language|framework|tool|concept|methodology", "proficiencyScore": 50, "evidence": "why moderate", "projectCount": 2, "trend": "improving|stable|declining"}
+                        {"name": "skill", "category": "category", "proficiencyScore": 50, "evidence": "why moderate", "projectCount": 2, "trend": "stable"}
                     ],
                     "weakSkills": [
-                        {"name": "skill name", "category": "language|framework|tool|concept|methodology", "proficiencyScore": 30, "evidence": "why weak/beginner", "projectCount": 1, "trend": "stable"}
+                        {"name": "skill", "category": "category", "proficiencyScore": 30, "evidence": "why weak", "projectCount": 1, "trend": "stable"}
                     ],
-                    "missingSkills": ["important skills not found in profile"],
+                    "missingSkills": ["important skills not found"],
                     "totalSkillsCount": 15
                 },
                 "enhancedRecommendations": {
                     "skillsToLearn": [
                         {
-                            "skill": "new skill to learn",
-                            "reason": "why this would help career growth",
+                            "skill": "new skill",
+                            "reason": "why learn this",
                             "priority": 1,
-                            "resources": ["specific courses", "documentation links"],
+                            "resources": ["courses", "docs"],
                             "estimatedTimeToLearn": "2-4 weeks",
                             "category": "learn_new",
-                            "relatedSkills": ["skills they already have that relate"],
+                            "relatedSkills": ["existing related skills"],
                             "difficultyLevel": "beginner|intermediate|advanced",
                             "careerImpact": "high|medium|low"
                         }
@@ -133,7 +148,7 @@ public class AIService {
                     "skillsToImprove": [
                         {
                             "skill": "existing skill to deepen",
-                            "reason": "why they should go deeper",
+                            "reason": "why go deeper",
                             "priority": 2,
                             "resources": ["advanced tutorials"],
                             "estimatedTimeToLearn": "1-2 weeks",
@@ -146,9 +161,9 @@ public class AIService {
                     "practiceMore": [
                         {
                             "skill": "skill needing practice",
-                            "reason": "why more practice would help",
+                            "reason": "why practice helps",
                             "priority": 3,
-                            "resources": ["project ideas", "coding challenges"],
+                            "resources": ["project ideas", "challenges"],
                             "estimatedTimeToLearn": "ongoing",
                             "category": "practice_more",
                             "relatedSkills": [],
@@ -156,26 +171,39 @@ public class AIService {
                             "careerImpact": "medium"
                         }
                     ],
-                    "careerAdvice": ["specific career advice based on their profile"],
-                    "nextMilestone": "specific next career milestone to aim for"
+                    "engineeringHabitsToImprove": [
+                        {
+                            "habit": "testing|documentation|ci_cd|code_structure|error_handling",
+                            "currentState": "description of current state based on metrics",
+                            "targetState": "what good looks like",
+                            "actionItems": ["specific steps to improve"],
+                            "priority": 1
+                        }
+                    ],
+                    "careerAdvice": ["specific career advice based on profile"],
+                    "nextMilestone": "specific next career milestone"
                 },
                 "developerProfile": {
                     "experienceLevel": "Junior|Mid|Senior",
                     "primaryLanguages": ["top languages"],
                     "primaryFrameworks": ["top frameworks"],
-                    "projectTypes": ["types of projects built"],
+                    "projectTypes": ["types of projects"],
                     "specialization": "backend|frontend|fullstack|data|devops|mobile",
+                    "codingStyleAssessment": {
+                        "style": "Engineering-Focused|Balanced|Rapid Prototyper",
+                        "strengths": ["what they do well based on engineering metrics"],
+                        "areasToImprove": ["specific areas from vibe analysis"],
+                        "professionalFeedback": "2-3 sentence professional assessment of their development approach"
+                    },
                     "skillDistribution": {"languages": 30, "frameworks": 25, "tools": 20, "concepts": 25},
                     "strengths": ["list of key strengths"],
-                    "areasForGrowth": ["areas that need attention"],
+                    "areasForGrowth": ["areas needing attention"],
                     "careerStage": "entry|junior|mid|senior|lead"
                 }
             }
             
-            Be specific, actionable, and base everything on the provided profile data.
-            For skillsToLearn, focus on skills that complement their existing expertise.
-            For skillsToImprove, identify skills they've used but haven't mastered.
-            For practiceMore, suggest real projects or challenges for skills they know.
+            Base everything on the provided pre-analyzed data. Be specific and actionable.
+            For coding style feedback, be CONSTRUCTIVE and PROFESSIONAL - focus on growth, not criticism.
             """, profileJson);
         
         String response = callOpenAI(prompt, 3000);
@@ -203,6 +231,7 @@ public class AIService {
                     .skillsToLearn(parseEnhancedRecommendations(enhNode.get("skillsToLearn")))
                     .skillsToImprove(parseEnhancedRecommendations(enhNode.get("skillsToImprove")))
                     .practiceMore(parseEnhancedRecommendations(enhNode.get("practiceMore")))
+                    .engineeringHabitsToImprove(parseEngineeringHabits(enhNode.get("engineeringHabitsToImprove")))
                     .careerAdvice(jsonArrayToList(enhNode.get("careerAdvice")))
                     .nextMilestone(enhNode.has("nextMilestone") ? enhNode.get("nextMilestone").asText() : "")
                     .build();
@@ -216,7 +245,7 @@ public class AIService {
                 allRecommendations.addAll(enhancedRecommendations.getPracticeMore());
             }
             
-            // Parse developer profile with enhanced fields
+            // Parse developer profile with enhanced fields including coding style assessment
             JsonNode profileNode = json.get("developerProfile");
             Map<String, Integer> skillDist = new HashMap<>();
             if (profileNode.has("skillDistribution")) {
@@ -225,12 +254,25 @@ public class AIService {
                     skillDist.put(entry.getKey(), entry.getValue().asInt()));
             }
             
+            // Parse coding style assessment
+            AnalysisResult.CodingStyleAssessment codingStyleAssessment = null;
+            if (profileNode.has("codingStyleAssessment")) {
+                JsonNode styleNode = profileNode.get("codingStyleAssessment");
+                codingStyleAssessment = AnalysisResult.CodingStyleAssessment.builder()
+                    .style(styleNode.has("style") ? styleNode.get("style").asText() : "Balanced")
+                    .strengths(jsonArrayToList(styleNode.get("strengths")))
+                    .areasToImprove(jsonArrayToList(styleNode.get("areasToImprove")))
+                    .professionalFeedback(styleNode.has("professionalFeedback") ? styleNode.get("professionalFeedback").asText() : "")
+                    .build();
+            }
+            
             AnalysisResult.DeveloperProfile developerProfile = AnalysisResult.DeveloperProfile.builder()
                 .experienceLevel(profileNode.has("experienceLevel") ? profileNode.get("experienceLevel").asText() : "Junior")
                 .primaryLanguages(jsonArrayToList(profileNode.get("primaryLanguages")))
                 .primaryFrameworks(jsonArrayToList(profileNode.get("primaryFrameworks")))
                 .projectTypes(jsonArrayToList(profileNode.get("projectTypes")))
                 .specialization(profileNode.has("specialization") ? profileNode.get("specialization").asText() : "fullstack")
+                .codingStyleAssessment(codingStyleAssessment)
                 .skillDistribution(skillDist)
                 .strengths(jsonArrayToList(profileNode.get("strengths")))
                 .areasForGrowth(jsonArrayToList(profileNode.get("areasForGrowth")))
@@ -287,6 +329,22 @@ public class AIService {
             }
         }
         return recs;
+    }
+    
+    private List<AnalysisResult.EngineeringHabitRecommendation> parseEngineeringHabits(JsonNode habitsNode) {
+        List<AnalysisResult.EngineeringHabitRecommendation> habits = new ArrayList<>();
+        if (habitsNode != null && habitsNode.isArray()) {
+            for (JsonNode node : habitsNode) {
+                habits.add(AnalysisResult.EngineeringHabitRecommendation.builder()
+                    .habit(node.has("habit") ? node.get("habit").asText() : "unknown")
+                    .currentState(node.has("currentState") ? node.get("currentState").asText() : "")
+                    .targetState(node.has("targetState") ? node.get("targetState").asText() : "")
+                    .actionItems(jsonArrayToList(node.get("actionItems")))
+                    .priority(node.has("priority") ? node.get("priority").asInt() : 3)
+                    .build());
+            }
+        }
+        return habits;
     }
     
     private String callOpenAI(String prompt, int maxTokens) {
@@ -367,37 +425,6 @@ public class AIService {
             }
         }
         return list;
-    }
-    
-    private List<AnalysisResult.Skill> parseSkills(JsonNode skillsNode) {
-        List<AnalysisResult.Skill> skills = new ArrayList<>();
-        if (skillsNode != null && skillsNode.isArray()) {
-            for (JsonNode node : skillsNode) {
-                skills.add(AnalysisResult.Skill.builder()
-                    .name(node.get("name").asText())
-                    .category(node.has("category") ? node.get("category").asText() : "unknown")
-                    .proficiencyScore(node.has("proficiencyScore") ? node.get("proficiencyScore").asInt() : 50)
-                    .evidence(node.has("evidence") ? node.get("evidence").asText() : "")
-                    .build());
-            }
-        }
-        return skills;
-    }
-    
-    private List<AnalysisResult.LearningRecommendation> parseRecommendations(JsonNode recsNode) {
-        List<AnalysisResult.LearningRecommendation> recs = new ArrayList<>();
-        if (recsNode != null && recsNode.isArray()) {
-            for (JsonNode node : recsNode) {
-                recs.add(AnalysisResult.LearningRecommendation.builder()
-                    .skill(node.get("skill").asText())
-                    .reason(node.has("reason") ? node.get("reason").asText() : "")
-                    .priority(node.has("priority") ? node.get("priority").asInt() : 3)
-                    .resources(jsonArrayToList(node.get("resources")))
-                    .estimatedTimeToLearn(node.has("estimatedTimeToLearn") ? node.get("estimatedTimeToLearn").asText() : "Unknown")
-                    .build());
-            }
-        }
-        return recs;
     }
     
     private RepoSummary createMinimalSummary(String repoName, String language) {

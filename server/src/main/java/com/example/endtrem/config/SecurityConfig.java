@@ -19,7 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
@@ -40,6 +40,7 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/api/github/callback",
                     "/api/github/login-url",
+                    "/api/health/**",
                     "/oauth2/**",
                     "/error"
                 ).permitAll()
@@ -68,8 +69,7 @@ public class SecurityConfig {
     
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }

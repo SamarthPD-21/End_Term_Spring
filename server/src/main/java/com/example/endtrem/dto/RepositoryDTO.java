@@ -14,14 +14,20 @@ import java.util.List;
 @AllArgsConstructor
 public class RepositoryDTO {
     private String id;
+    private Long githubRepoId;
     private String name;
     private String fullName;
     private String description;
     private String htmlUrl;
     private String language;
     private List<String> topics;
-    private int stars;
-    private int forks;
+    private int stargazersCount;
+    private int forksCount;
+    private boolean isPrivate;
+    private boolean isFork;
+    private String defaultBranch;
+    private boolean hasReadme;
     private boolean processed;
-    private LocalDateTime updatedAt;
+    private LocalDateTime githubCreatedAt;
+    private LocalDateTime githubUpdatedAt;
 }
