@@ -20,7 +20,7 @@ import {
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading: authLoading, loginWithGitHub, refreshUser } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, loginWithGitHub } = useAuth();
   const router = useRouter();
   
   const [latestAnalysis, setLatestAnalysis] = useState<AnalysisResult | null>(null);

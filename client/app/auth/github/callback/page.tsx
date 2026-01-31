@@ -23,7 +23,10 @@ function GitHubCallbackContent() {
           setError(err.message || 'Failed to authenticate with GitHub');
         });
     } else {
-      setError('No authorization code received from GitHub');
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => {
+        setError('No authorization code received from GitHub');
+      }, 0);
     }
   }, [searchParams, handleGitHubCallback, router]);
 

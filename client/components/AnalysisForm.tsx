@@ -20,14 +20,6 @@ export function AnalysisForm({ onSubmit, isLoading }: AnalysisFormProps) {
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
-  const [showRepoSelector, setShowRepoSelector] = useState(false);
-
-  // Load repositories when switching to selection mode
-  useEffect(() => {
-    if (filterMode !== 'TIME_BASED' && repositories.length === 0) {
-      loadRepositories();
-    }
-  }, [filterMode]);
 
   const loadRepositories = async () => {
     setIsLoadingRepos(true);
@@ -35,7 +27,7 @@ export function AnalysisForm({ onSubmit, isLoading }: AnalysisFormProps) {
       // First fetch fresh repos from GitHub
       const repos = await api.fetchRepositories(monthsToAnalyze, includeForkedRepos);
       setRepositories(repos);
-    } catch (err) {
+    } catch {
       // Try to get cached repos if fetch fails
       try {
         const cachedRepos = await api.getRepositories();
@@ -47,6 +39,14 @@ export function AnalysisForm({ onSubmit, isLoading }: AnalysisFormProps) {
       setIsLoadingRepos(false);
     }
   };
+
+  // Load repositories when switching to selection mode
+  useEffect(() => {
+    if (filterMode !== 'TIME_BASED' && repositories.length === 0) {
+      loadRepositories();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMode, repositories.length]);
 
   const toggleRepoSelection = (repoId: string) => {
     setSelectedRepoIds(prev => 
@@ -344,7 +344,7 @@ export function AnalysisForm({ onSubmit, isLoading }: AnalysisFormProps) {
             exit={{ opacity: 0, y: -10 }}
             className="text-sm text-gray-500 dark:text-gray-400 mt-3 text-center"
           >
-            This may take a moment. We're extracting skills from your READMEs.
+            This may take a moment. We&apos;re extracting skills from your READMEs.
           </motion.p>
         )}
       </AnimatePresence>

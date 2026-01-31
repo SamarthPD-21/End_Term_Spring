@@ -44,8 +44,9 @@ export interface PipelineStage {
   id: string;
   name: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
-  progress: number;
-  description: string;
+  progress?: number;
+  description?: string;
+  icon?: string;
 }
 
 export interface RepoExtraction {
@@ -84,6 +85,8 @@ export interface SkillAnalysis {
   missingSkills: string[];
   skillsByCategory: Record<string, Skill[]>;
   totalSkillsCount: number;
+  totalSkillsIdentified?: number;
+  confidenceScore?: number;
 }
 
 // Enhanced recommendation types
@@ -147,6 +150,10 @@ export interface AnalysisResult {
     totalFrameworks: number;
     totalTools: number;
     processingTimeMs: number;
+    totalProcessingTime?: string;
+    reposProcessed?: number;
+    skillsExtracted?: number;
+    aiModelUsed?: string;
   };
 }
 

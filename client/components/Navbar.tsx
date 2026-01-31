@@ -197,9 +197,10 @@ export function Navbar() {
                   {/* User Info */}
                   <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-4">
                     {user?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={user.avatarUrl}
-                        alt={user.name}
+                        alt={user.name || 'User avatar'}
                         className="w-10 h-10 rounded-full"
                       />
                     ) : (
