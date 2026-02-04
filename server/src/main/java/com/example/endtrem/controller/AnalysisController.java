@@ -82,4 +82,35 @@ public class AnalysisController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+    
+    /**
+     * Delete a specific analysis by ID
+     */
+    @DeleteMapping("/{analysisId}")
+    public ResponseEntity<ApiResponse<Void>> deleteAnalysis(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String analysisId) {
+        try {
+            analysisService.deleteAnalysis(principal.getId(), analysisId);
+            return ResponseEntity.ok(ApiResponse.success("Analysis deleted successfully", null));
+        } catch (Exception e) {
+            log.error("Failed to delete analysis: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+    
+    /**
+     * Delete all analyses for the current user
+     */
+    @DeleteMapping("/all")
+    public ResponseEntity<ApiResponse<Void>> deleteAllAnalyses(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        try {
+            analysisService.deleteAllAnalyses(principal.getId());
+            return ResponseEntity.ok(ApiResponse.success("All analyses deleted successfully", null));
+        } catch (Exception e) {
+            log.error("Failed to delete analyses: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
 }

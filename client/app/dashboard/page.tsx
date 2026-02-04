@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
-import { AnalysisResult, Repository } from '@/lib/types';
+import { AnalysisResult, Repository, IntelligenceStatus } from '@/lib/types';
 import { ProfileCard } from '@/components/ProfileCard';
 import { SkillsDisplay } from '@/components/SkillsDisplay';
 import { RecommendationsList } from '@/components/RecommendationsList';
@@ -15,18 +15,26 @@ import {
   FolderGit2, 
   AlertCircle,
   ArrowRight,
-  Loader2
+  Loader2,
+  Brain,
+  TrendingUp,
+  Target,
+  Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading: authLoading, loginWithGitHub } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, linkGitHub, unlinkGitHub } = useAuth();
   const router = useRouter();
   
   const [latestAnalysis, setLatestAnalysis] = useState<AnalysisResult | null>(null);
   const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [intelligenceStatus, setIntelligenceStatus] = useState<IntelligenceStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
+  const [isUnlinkingGitHub, setIsUnlinkingGitHub] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -45,13 +53,15 @@ export default function DashboardPage() {
     setError(null);
     
     try {
-      const [analysisData, reposData] = await Promise.all([
+      const [analysisData, reposData, intelligenceData] = await Promise.all([
         api.getLatestAnalysis().catch(() => null),
-        api.getRepositories().catch(() => [])
+        api.getRepositories().catch(() => []),
+        api.getIntelligenceStatus().catch(() => null)
       ]);
       
       setLatestAnalysis(analysisData);
       setRepositories(reposData);
+      setIntelligenceStatus(intelligenceData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
@@ -98,11 +108,60 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              onClick={loginWithGitHub}
-              className="bg-white text-gray-900 px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-2"
+              onClick={() => {
+                setIsLinkingGitHub(true);
+                linkGitHub();
+              }}
+              disabled={isLinkingGitHub}
+              className="bg-white text-gray-900 px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              <Github size={18} />
-              Connect GitHub
+              {isLinkingGitHub ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Github size={18} />
+              )}
+              {isLinkingGitHub ? 'Connecting...' : 'Connect GitHub'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* GitHub Linked Card - Show when connected */}
+      {user?.hasGithubLinked && (
+        <div className="bg-gradient-to-r from-green-800 to-emerald-700 rounded-xl p-6 mb-8 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Github size={40} />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-green-800"></div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">GitHub Connected</h3>
+                <p className="text-green-200">
+                  {user.githubUsername ? `@${user.githubUsername}` : 'Your GitHub account is linked'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (confirm('Are you sure you want to unlink your GitHub account? You will need to re-link it to analyze repositories.')) {
+                  setIsUnlinkingGitHub(true);
+                  try {
+                    await unlinkGitHub();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Failed to unlink GitHub');
+                  } finally {
+                    setIsUnlinkingGitHub(false);
+                  }
+                }
+              }}
+              disabled={isUnlinkingGitHub}
+              className="bg-white/20 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {isUnlinkingGitHub ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : null}
+              {isUnlinkingGitHub ? 'Unlinking...' : 'Unlink GitHub'}
             </button>
           </div>
         </div>
@@ -150,6 +209,75 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Intelligence Summary Card */}
+      {latestAnalysis && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <Link href="/intelligence">
+            <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-xl p-6 text-white hover:shadow-xl transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="p-3 bg-white/20 rounded-xl"
+                  >
+                    <Brain size={28} />
+                  </motion.div>
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      Intelligence Layer
+                      <Sparkles size={16} />
+                    </h3>
+                    <p className="text-white/80 text-sm">
+                      Track progression, analyze your role, and discover market opportunities
+                    </p>
+                  </div>
+                </div>
+                
+                {intelligenceStatus && (intelligenceStatus.hasProgressionData || intelligenceStatus.hasRoleInference) ? (
+                  <div className="hidden md:flex items-center gap-6">
+                    {intelligenceStatus.inferredLevel && (
+                      <div className="text-center">
+                        <p className="text-white/70 text-xs mb-1">Level</p>
+                        <p className="text-lg font-bold capitalize">{intelligenceStatus.inferredLevel}</p>
+                      </div>
+                    )}
+                    {intelligenceStatus.progressionStatus && (
+                      <div className="text-center">
+                        <p className="text-white/70 text-xs mb-1">Status</p>
+                        <div className="flex items-center gap-1">
+                          <TrendingUp size={16} />
+                          <span className="font-medium text-sm">{intelligenceStatus.progressionStatus.replace(/_/g, ' ')}</span>
+                        </div>
+                      </div>
+                    )}
+                    {intelligenceStatus.closestRole && (
+                      <div className="text-center">
+                        <p className="text-white/70 text-xs mb-1">Closest Role</p>
+                        <div className="flex items-center gap-1">
+                          <Target size={16} />
+                          <span className="font-medium text-sm">{intelligenceStatus.closestRole}</span>
+                        </div>
+                      </div>
+                    )}
+                    <ArrowRight size={24} className="ml-2" />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg">
+                    <span className="text-sm font-medium">Explore</span>
+                    <ArrowRight size={18} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </Link>
+        </motion.div>
+      )}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-8 flex items-center gap-3">
@@ -210,7 +338,7 @@ export default function DashboardPage() {
             </Link>
           ) : (
             <button
-              onClick={loginWithGitHub}
+              onClick={() => linkGitHub()}
               className="inline-flex items-center gap-2 bg-gray-900 text-white px-8 py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
             >
               <Github size={18} />

@@ -24,6 +24,25 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
+// Skill Profile Types
+export interface DetectedSkill {
+  skillId: string;
+  normalizedName: string;
+  category: string;
+  proficiencyScore: number;
+  evidenceStrength: number;
+  projectCount: number;
+  sources: string[];
+}
+
+export interface SkillProfile {
+  id: string;
+  userId: string;
+  detectedSkills: DetectedSkill[];
+  skillsByCategory: Record<string, DetectedSkill[]>;
+  createdAt: string;
+}
+
 // Repository Types
 export interface Repository {
   id: string;
@@ -163,4 +182,194 @@ export interface AnalysisRequest {
   excludeRepos: string[];
   filterMode: 'TIME_BASED' | 'SELECTED_REPOS' | 'COMBINED';
   selectedRepoIds: string[];
+}
+
+// ============================================
+// PHASE-2: Intelligence Layer Types
+// ============================================
+
+// Skill Progression Types
+export type ProgressionStatus = 
+  | 'RAPIDLY_IMPROVING' 
+  | 'IMPROVING' 
+  | 'SLIGHTLY_IMPROVING' 
+  | 'STAGNATING' 
+  | 'SLIGHTLY_REGRESSING' 
+  | 'REGRESSING';
+
+export type DeltaType = 
+  | 'NEW_SKILL'
+  | 'SIGNIFICANT_GAIN'
+  | 'MODERATE_GAIN'
+  | 'SLIGHT_GAIN'
+  | 'STABLE'
+  | 'SLIGHT_DECLINE'
+  | 'SIGNIFICANT_DECLINE'
+  | 'ABANDONED';
+
+export interface SkillDelta {
+  skillName: string;
+  normalizedName: string;
+  category: string;
+  previousProficiency: number | null;
+  currentProficiency: number | null;
+  proficiencyDelta: number;
+  deltaType: DeltaType;
+  insight: string;
+  isNewSkill: boolean;
+  isAbandoned: boolean;
+}
+
+export interface VelocityMetrics {
+  skillsPerMonth: number;
+  newSkillsPerMonth: number;
+  averageImprovementRate: number;
+  learningMomentum: 'accelerating' | 'steady' | 'decelerating' | 'stalled';
+  estimatedDaysToNextLevel: number;
+  estimatedDaysToSenior: number;
+}
+
+export interface TrendAnalysis {
+  dominantCategory: string;
+  categoryTrends: Record<string, number>;
+  focusAreaShift: string;
+  detectedPatterns: string[];
+}
+
+export interface ProgressionSummary {
+  overallStatus: ProgressionStatus;
+  totalSkillsImproved: number;
+  totalSkillsStagnant: number;
+  totalSkillsRegressed: number;
+  newSkillsAcquired: number;
+  skillsAbandoned: number;
+  overallProgressScore: number;
+  narrativeSummary: string;
+}
+
+export interface SkillProgression {
+  id: string;
+  userId: string;
+  previousProfileId: string;
+  currentProfileId: string;
+  previousSnapshotDate: string;
+  currentSnapshotDate: string;
+  daysBetweenSnapshots: number;
+  summary: ProgressionSummary;
+  skillDeltas: SkillDelta[];
+  velocity: VelocityMetrics;
+  trends: TrendAnalysis;
+  createdAt: string;
+}
+
+// Role Inference Types
+export interface LevelFactor {
+  factorName: string;
+  value: number;
+  weight: number;
+  contribution: number;
+  description: string;
+}
+
+export interface InferredLevel {
+  level: 'junior' | 'mid' | 'senior';
+  confidence: number;
+  juniorProbability: number;
+  midProbability: number;
+  seniorProbability: number;
+  keyFactors: LevelFactor[];
+  explanation: string;
+}
+
+export interface RoleDistance {
+  roleId: string;
+  roleName: string;
+  roleLevel: string;
+  specialization: string;
+  overallDistance: number;
+  technicalDistance: number;
+  experienceDistance: number;
+  engineeringPracticesDistance: number;
+  criticalSkillsMatched: number;
+  criticalSkillsRequired?: number; // Frontend alias
+  criticalSkillsTotal?: number; // Backend field
+  importantSkillsMatched?: number;
+  importantSkillsTotal?: number;
+  missingCriticalSkills?: string[]; // Frontend alias
+  topGaps?: string[]; // Backend field
+  strengths?: string[];
+  estimatedWeeksToReach: number;
+  difficultyAssessment?: string;
+  roadmap?: string[]; // May not exist in backend
+  marketDemandScore?: number;
+  marketInsight?: string;
+}
+
+export interface RoleInference {
+  id: string;
+  userId: string;
+  skillProfileId: string;
+  inferredLevel: InferredLevel;
+  roleDistances: RoleDistance[];
+  createdAt: string;
+}
+
+// Market Demand Types
+export interface DemandMetrics {
+  demandScore: number;
+  growthRate: number;
+  salaryMultiplier: number;
+  jobPostingsCount: number;
+  demandLevel: string; // Backend field name
+  competitionLevel?: string; // Frontend alias
+}
+
+export interface TrendData {
+  direction: 'rising' | 'stable' | 'declining';
+  momentum: number;
+  forecast?: string; // Backend field name
+  sixMonthForecast?: number; // Frontend computed value
+  historicalScores?: number[];
+}
+
+export interface RoleDemand {
+  roleId: string;
+  relevanceScore: number;
+  isCritical: boolean;
+}
+
+export interface MarketDemand {
+  id: string;
+  skillId: string;
+  skillName?: string; // Backend field name
+  displayName?: string; // Frontend alias
+  category: string;
+  currentDemand?: DemandMetrics; // Backend field name
+  metrics?: DemandMetrics; // Frontend alias
+  trend: TrendData;
+  roleDemands?: Record<string, RoleDemand>; // Backend returns Map
+  lastUpdated: string;
+}
+
+// Intelligence Report Types
+export interface IntelligenceStatus {
+  hasProgressionData: boolean;
+  hasRoleInference: boolean;
+  progressionStatus?: ProgressionStatus;
+  progressScore?: number;
+  skillsImproved?: number;
+  newSkillsAcquired?: number;
+  inferredLevel?: string;
+  levelConfidence?: number;
+  closestRole?: string;
+  distanceToClosest?: number;
+  weeksToClosest?: number;
+}
+
+export interface IntelligenceReport {
+  fullReport: string;
+  progression?: SkillProgression;
+  roleInference?: RoleInference;
+  topDemandSkills: MarketDemand[];
+  risingSkills: MarketDemand[];
 }

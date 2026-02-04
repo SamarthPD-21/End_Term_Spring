@@ -2,7 +2,7 @@ package com.example.endtrem.service;
 
 import com.example.endtrem.dto.*;
 import com.example.endtrem.model.User;
-import com.example.endtrem.repository.UserRepository;
+import com.example.endtrem.repository.*;
 import com.example.endtrem.security.JwtService;
 import com.example.endtrem.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -21,6 +22,15 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    
+    // Repositories for cascade delete
+    private final AnalysisResultRepository analysisResultRepository;
+    private final SkillProfileRepository skillProfileRepository;
+    private final SkillProgressionRepository skillProgressionRepository;
+    private final RoleInferenceRepository roleInferenceRepository;
+    private final RecommendationResultRepository recommendationResultRepository;
+    private final RepositoryRepository repositoryRepository;
+    private final RepoSummaryRepository repoSummaryRepository;
     
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -88,6 +98,57 @@ public class AuthService {
         return generateAuthResponse(user);
     }
     
+    /**
+     * Link GitHub account to an existing logged-in user.
+     * This allows users with different emails to link their GitHub.
+     */
+    public UserDTO linkGitHubToUser(String userId, String githubId, String username, 
+                                     String avatarUrl, String accessToken) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        // Check if this GitHub account is already linked to another user
+        userRepository.findByGithubId(githubId).ifPresent(existingUser -> {
+            if (!existingUser.getId().equals(userId)) {
+                throw new RuntimeException("This GitHub account is already linked to another user");
+            }
+        });
+        
+        user.setGithubId(githubId);
+        user.setGithubUsername(username);
+        user.setGithubAccessToken(accessToken);
+        if (user.getAvatarUrl() == null) {
+            user.setAvatarUrl(avatarUrl);
+        }
+        
+        user = userRepository.save(user);
+        log.info("GitHub linked to user: {} -> {}", user.getEmail(), username);
+        
+        return mapToUserDTO(user);
+    }
+    
+    /**
+     * Unlink GitHub account from a user.
+     */
+    public UserDTO unlinkGitHub(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        // Only allow unlinking if user has a password (local auth)
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            throw new RuntimeException("Cannot unlink GitHub. Please set a password first.");
+        }
+        
+        user.setGithubId(null);
+        user.setGithubUsername(null);
+        user.setGithubAccessToken(null);
+        
+        user = userRepository.save(user);
+        log.info("GitHub unlinked from user: {}", user.getEmail());
+        
+        return mapToUserDTO(user);
+    }
+    
     private AuthResponse generateAuthResponse(User user) {
         UserPrincipal userPrincipal = UserPrincipal.create(user);
         String token = jwtService.generateToken(userPrincipal);
@@ -118,5 +179,40 @@ public class AuthService {
                 .lastAnalysisAt(user.getLastAnalysisAt())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+    
+    /**
+     * Delete user account and all associated data
+     */
+    @Transactional
+    public void deleteAccount(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        log.info("Deleting account for user: {} ({})", user.getEmail(), userId);
+        
+        // Delete all user data from all collections
+        analysisResultRepository.deleteByUserId(userId);
+        skillProfileRepository.deleteByUserId(userId);
+        skillProgressionRepository.deleteByUserId(userId);
+        roleInferenceRepository.deleteByUserId(userId);
+        recommendationResultRepository.deleteByUserId(userId);
+        repositoryRepository.deleteByUserId(userId);
+        repoSummaryRepository.deleteByUserId(userId);
+        
+        // Also delete by email (for legacy data)
+        String email = user.getEmail();
+        analysisResultRepository.deleteByUserId(email);
+        skillProfileRepository.deleteByUserId(email);
+        skillProgressionRepository.deleteByUserId(email);
+        roleInferenceRepository.deleteByUserId(email);
+        recommendationResultRepository.deleteByUserId(email);
+        repositoryRepository.deleteByUserId(email);
+        repoSummaryRepository.deleteByUserId(email);
+        
+        // Finally delete the user
+        userRepository.delete(user);
+        
+        log.info("Account deleted successfully for user: {}", email);
     }
 }

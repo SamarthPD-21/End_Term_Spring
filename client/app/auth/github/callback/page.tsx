@@ -7,20 +7,30 @@ import { Loader2 } from 'lucide-react';
 
 function GitHubCallbackContent() {
   const [error, setError] = useState<string | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { handleGitHubCallback } = useAuth();
+  const { handleGitHubCallback, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const code = searchParams.get('code');
     
+    // Check if this is a linking flow
+    const action = typeof window !== 'undefined' ? localStorage.getItem('github_action') : null;
+    const shouldLink = action === 'link';
+    setIsLinking(shouldLink);
+    
     if (code) {
-      handleGitHubCallback(code)
+      handleGitHubCallback(code, shouldLink)
         .then(() => {
           router.push('/dashboard');
         })
         .catch((err) => {
           setError(err.message || 'Failed to authenticate with GitHub');
+          // Clear the action flag on error
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('github_action');
+          }
         });
     } else {
       // Use setTimeout to avoid synchronous setState in effect
@@ -28,7 +38,7 @@ function GitHubCallbackContent() {
         setError('No authorization code received from GitHub');
       }, 0);
     }
-  }, [searchParams, handleGitHubCallback, router]);
+  }, [searchParams, handleGitHubCallback, router, isAuthenticated]);
 
   if (error) {
     return (
@@ -36,14 +46,14 @@ function GitHubCallbackContent() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg max-w-md text-center">
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Authentication Failed
+            {isLinking ? 'GitHub Linking Failed' : 'Authentication Failed'}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
-            onClick={() => router.push('/login')}
+            onClick={() => router.push(isLinking ? '/dashboard' : '/login')}
             className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
           >
-            Try Again
+            {isLinking ? 'Back to Dashboard' : 'Try Again'}
           </button>
         </div>
       </div>
@@ -55,10 +65,12 @@ function GitHubCallbackContent() {
       <div className="text-center">
         <Loader2 className="w-12 h-12 animate-spin text-purple-600 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Authenticating with GitHub...
+          {isLinking ? 'Linking GitHub Account...' : 'Authenticating with GitHub...'}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Please wait while we complete the login process.
+          {isLinking 
+            ? 'Please wait while we link your GitHub account.'
+            : 'Please wait while we complete the login process.'}
         </p>
       </div>
     </div>

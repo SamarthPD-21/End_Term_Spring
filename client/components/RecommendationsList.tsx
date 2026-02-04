@@ -64,7 +64,8 @@ function RecommendationCard({ rec, index }: { rec: LearningRecommendation; index
   const [isExpanded, setIsExpanded] = useState(false);
   const colors = priorityColors[rec.priority] || priorityColors[5];
   const category = categoryConfig[rec.category || 'learn_new'];
-  const impact = impactColors[rec.careerImpact || 'medium'];
+  const impactKey = rec.careerImpact?.toLowerCase() || 'medium';
+  const impact = impactColors[impactKey] || impactColors['medium'];
 
   return (
     <motion.div
@@ -241,7 +242,7 @@ function CategorySection({
       
       <div className="space-y-4">
         {recommendations.map((rec, idx) => (
-          <RecommendationCard key={rec.skill} rec={rec} index={idx} />
+          <RecommendationCard key={`${rec.skill}-${idx}`} rec={rec} index={idx} />
         ))}
       </div>
     </motion.div>
@@ -369,7 +370,7 @@ export function RecommendationsList({ recommendations, enhancedRecommendations }
         // Fallback to regular recommendations
         <div className="space-y-4">
           {recommendations?.sort((a, b) => a.priority - b.priority).map((rec, idx) => (
-            <RecommendationCard key={rec.skill} rec={rec} index={idx} />
+            <RecommendationCard key={`${rec.skill}-${idx}`} rec={rec} index={idx} />
           ))}
         </div>
       )}

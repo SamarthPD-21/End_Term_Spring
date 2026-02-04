@@ -30,7 +30,7 @@ public class AnalysisService {
     private final AnalysisResultRepository analysisResultRepository;
     private final UserRepository userRepository;
     private final GitHubService gitHubService;
-    private final AIService aiService;
+    private final DeterministicRecommendationService recommendationService; // Replaced AIService
     private final ReadmeParserService readmeParserService;
     
     /**
@@ -139,15 +139,9 @@ public class AnalysisService {
         // Step 4: PIPELINE STAGE 2 - Aggregate all parsed data into comprehensive profile
         AggregatedProfileDTO aggregatedProfile = aggregateParsedReadmes(userId, parsedReadmes, repos);
         
-        // Step 5: PIPELINE STAGE 3 - Single AI call with all pre-parsed data
-        // AI now has complete context about what user knows, doesn't know, and their coding style
-        AnalysisResult result;
-        try {
-            result = aiService.analyzeProfile(aggregatedProfile);
-        } catch (Exception e) {
-            log.warn("AI analysis failed ({}), using local analysis fallback", e.getMessage());
-            result = generateLocalAnalysis(aggregatedProfile);
-        }
+        // Step 5: PIPELINE STAGE 3 - Deterministic recommendation engine (NO AI/OpenAI calls)
+        // Uses rule-based scoring, skill ontology, and role templates for gap analysis
+        AnalysisResult result = recommendationService.analyzeProfile(aggregatedProfile);
         
         // Add pipeline summary to result
         long processingTime = System.currentTimeMillis() - startTime;
@@ -484,380 +478,6 @@ public class AnalysisService {
         return gaps;
     }
     
-    /**
-     * Generate analysis locally when AI is unavailable (rate limited, etc.)
-     * This provides a basic but useful analysis without any API calls
-     */
-    private AnalysisResult generateLocalAnalysis(AggregatedProfileDTO profile) {
-        log.info("Generating local analysis fallback for user: {}", profile.getUserId());
-        
-        // Build skills from profile data
-        List<AnalysisResult.Skill> strongSkills = new ArrayList<>();
-        List<AnalysisResult.Skill> moderateSkills = new ArrayList<>();
-        List<AnalysisResult.Skill> weakSkills = new ArrayList<>();
-        
-        // Languages as skills - use frequency to determine proficiency
-        Map<String, Integer> langDist = profile.getLanguageDistribution();
-        int maxLangCount = langDist.values().stream().mapToInt(Integer::intValue).max().orElse(1);
-        
-        for (String lang : profile.getLanguages()) {
-            int count = langDist.getOrDefault(lang, 1);
-            int score = Math.min(95, 40 + (count * 50 / maxLangCount));
-            
-            AnalysisResult.Skill skill = AnalysisResult.Skill.builder()
-                .name(lang)
-                .category("language")
-                .proficiencyScore(score)
-                .evidence("Found in " + count + " project(s)")
-                .projectCount(count)
-                .trend(count >= 3 ? "improving" : "stable")
-                .build();
-            
-            if (score >= 70) {
-                strongSkills.add(skill);
-            } else if (score >= 50) {
-                moderateSkills.add(skill);
-            } else {
-                weakSkills.add(skill);
-            }
-        }
-        
-        // Frameworks as skills
-        for (String framework : profile.getFrameworks()) {
-            AnalysisResult.Skill skill = AnalysisResult.Skill.builder()
-                .name(framework)
-                .category("framework")
-                .proficiencyScore(65)
-                .evidence("Detected in project analysis")
-                .projectCount(1)
-                .trend("stable")
-                .build();
-            moderateSkills.add(skill);
-        }
-        
-        // Tools as skills
-        for (String tool : profile.getTools()) {
-            AnalysisResult.Skill skill = AnalysisResult.Skill.builder()
-                .name(tool)
-                .category("tool")
-                .proficiencyScore(55)
-                .evidence("Used in projects")
-                .projectCount(1)
-                .trend("stable")
-                .build();
-            moderateSkills.add(skill);
-        }
-        
-        int totalSkills = strongSkills.size() + moderateSkills.size() + weakSkills.size();
-        
-        AnalysisResult.SkillAnalysis skillAnalysis = AnalysisResult.SkillAnalysis.builder()
-            .strongSkills(strongSkills)
-            .moderateSkills(moderateSkills)
-            .weakSkills(weakSkills)
-            .missingSkills(profile.getPotentialGaps() != null ? profile.getPotentialGaps() : new ArrayList<>())
-            .totalSkillsCount(totalSkills)
-            .build();
-        
-        // Generate ENHANCED recommendations with three categories
-        List<AnalysisResult.LearningRecommendation> skillsToLearn = new ArrayList<>();
-        List<AnalysisResult.LearningRecommendation> skillsToImprove = new ArrayList<>();
-        List<AnalysisResult.LearningRecommendation> practiceMore = new ArrayList<>();
-        
-        // Skills to LEARN (from gaps)
-        if (profile.getPotentialGaps() != null) {
-            int priority = 1;
-            for (String gap : profile.getPotentialGaps()) {
-                skillsToLearn.add(AnalysisResult.LearningRecommendation.builder()
-                    .skill(gap)
-                    .reason("This skill was not detected in your projects and would complement your existing expertise.")
-                    .priority(Math.min(priority++, 5))
-                    .resources(getDefaultResourcesForSkill(gap))
-                    .estimatedTimeToLearn("2-4 weeks")
-                    .category("learn_new")
-                    .relatedSkills(new ArrayList<>(profile.getLanguages().subList(0, Math.min(2, profile.getLanguages().size()))))
-                    .difficultyLevel("intermediate")
-                    .careerImpact("high")
-                    .build());
-            }
-        }
-        
-        // Skills to IMPROVE (moderate skills)
-        int improveCount = 0;
-        for (AnalysisResult.Skill skill : moderateSkills) {
-            if (improveCount >= 3) break;
-            skillsToImprove.add(AnalysisResult.LearningRecommendation.builder()
-                .skill(skill.getName())
-                .reason("You have experience with " + skill.getName() + " but there's room to deepen your knowledge.")
-                .priority(improveCount + 1)
-                .resources(List.of("Advanced " + skill.getName() + " tutorials", skill.getName() + " best practices", "Real-world " + skill.getName() + " projects"))
-                .estimatedTimeToLearn("1-2 weeks")
-                .category("improve_existing")
-                .relatedSkills(new ArrayList<>())
-                .difficultyLevel("intermediate")
-                .careerImpact("medium")
-                .build());
-            improveCount++;
-        }
-        
-        // Skills to PRACTICE MORE (strong skills)
-        int practiceCount = 0;
-        for (AnalysisResult.Skill skill : strongSkills) {
-            if (practiceCount >= 2) break;
-            practiceMore.add(AnalysisResult.LearningRecommendation.builder()
-                .skill(skill.getName())
-                .reason("You're proficient in " + skill.getName() + ". Consider contributing to open source or building complex projects to solidify expertise.")
-                .priority(practiceCount + 1)
-                .resources(List.of("Open source " + skill.getName() + " projects", skill.getName() + " coding challenges", "Build a production-grade " + skill.getName() + " app"))
-                .estimatedTimeToLearn("Ongoing")
-                .category("practice_more")
-                .relatedSkills(new ArrayList<>())
-                .difficultyLevel("advanced")
-                .careerImpact("medium")
-                .build());
-            practiceCount++;
-        }
-        
-        // Combined recommendations for backward compatibility
-        List<AnalysisResult.LearningRecommendation> allRecommendations = new ArrayList<>();
-        allRecommendations.addAll(skillsToLearn);
-        allRecommendations.addAll(skillsToImprove);
-        allRecommendations.addAll(practiceMore);
-        
-        // Generate engineering habit recommendations from vibe coding metrics
-        List<AnalysisResult.EngineeringHabitRecommendation> engineeringHabits = new ArrayList<>();
-        if (profile.getVibeCodingMetrics() != null && profile.getEngineeringMetrics() != null) {
-            AggregatedProfileDTO.EngineeringMetrics engMetrics = profile.getEngineeringMetrics();
-            
-            // Check testing habits
-            if (engMetrics.getReposWithTests() < profile.getTotalProjects() / 2) {
-                    engineeringHabits.add(AnalysisResult.EngineeringHabitRecommendation.builder()
-                        .habit("testing")
-                        .currentState("Tests detected in " + engMetrics.getReposWithTests() + "/" + profile.getTotalProjects() + " repos")
-                        .targetState("Include tests in at least 80% of projects")
-                        .actionItems(List.of("Start with unit tests for critical functions", "Use TDD for new features", "Add integration tests for APIs"))
-                        .priority(1)
-                        .build());
-                }
-                
-                // Check CI/CD habits
-                if (engMetrics.getReposWithCiCd() < profile.getTotalProjects() / 3) {
-                    engineeringHabits.add(AnalysisResult.EngineeringHabitRecommendation.builder()
-                        .habit("ci_cd")
-                        .currentState("CI/CD detected in " + engMetrics.getReposWithCiCd() + "/" + profile.getTotalProjects() + " repos")
-                        .targetState("Set up automated pipelines for all projects")
-                        .actionItems(List.of("Start with GitHub Actions for simple builds", "Add automated testing to pipeline", "Consider deployment automation"))
-                        .priority(2)
-                        .build());
-                }
-                
-                // Check documentation habits
-                if (engMetrics.getAvgDocumentationSections() < 4) {
-                    engineeringHabits.add(AnalysisResult.EngineeringHabitRecommendation.builder()
-                        .habit("documentation")
-                        .currentState("Average " + engMetrics.getAvgDocumentationSections() + " documentation sections per README")
-                        .targetState("Include setup, usage, API docs, and architecture sections")
-                        .actionItems(List.of("Add detailed installation steps", "Document environment variables", "Include architecture diagrams for complex projects"))
-                        .priority(3)
-                        .build());
-                }
-        }
-        
-        // Enhanced recommendations object
-        AnalysisResult.EnhancedRecommendations enhancedRecommendations = AnalysisResult.EnhancedRecommendations.builder()
-            .skillsToLearn(skillsToLearn)
-            .skillsToImprove(skillsToImprove)
-            .practiceMore(practiceMore)
-            .engineeringHabitsToImprove(engineeringHabits)
-            .careerAdvice(generateCareerAdvice(profile))
-            .nextMilestone(generateNextMilestone(profile))
-            .build();
-        
-        // Determine experience level
-        String experienceLevel = "Junior";
-        Map<String, Integer> complexityDist = profile.getComplexityDistribution();
-        int advanced = complexityDist.getOrDefault("ADVANCED", 0);
-        int intermediate = complexityDist.getOrDefault("INTERMEDIATE", 0);
-        
-        if (advanced >= 3 || (advanced >= 1 && intermediate >= 3)) {
-            experienceLevel = "Senior";
-        } else if (advanced >= 1 || intermediate >= 2) {
-            experienceLevel = "Mid";
-        }
-        
-        // Determine specialization
-        String specialization = "fullstack";
-        boolean hasBackend = profile.getFrameworks().stream().anyMatch(f ->
-            f.toLowerCase().contains("spring") || f.toLowerCase().contains("express") ||
-            f.toLowerCase().contains("django") || f.toLowerCase().contains("flask"));
-        boolean hasFrontend = profile.getFrameworks().stream().anyMatch(f ->
-            f.toLowerCase().contains("react") || f.toLowerCase().contains("vue") ||
-            f.toLowerCase().contains("angular") || f.toLowerCase().contains("next"));
-        
-        if (hasBackend && !hasFrontend) specialization = "backend";
-        else if (hasFrontend && !hasBackend) specialization = "frontend";
-        
-        Map<String, Integer> skillDistribution = new HashMap<>();
-        skillDistribution.put("languages", profile.getLanguages().size() * 10);
-        skillDistribution.put("frameworks", profile.getFrameworks().size() * 15);
-        skillDistribution.put("tools", profile.getTools().size() * 10);
-        skillDistribution.put("concepts", profile.getFeatures().size() * 8);
-        
-        // Determine strengths and growth areas
-        List<String> strengths = new ArrayList<>();
-        List<String> areasForGrowth = new ArrayList<>();
-        
-        if (!strongSkills.isEmpty()) {
-            strengths.add("Strong proficiency in " + strongSkills.get(0).getName());
-        }
-        if (hasBackend && hasFrontend) {
-            strengths.add("Full-stack development capabilities");
-        }
-        if (profile.getPotentialGaps() != null && !profile.getPotentialGaps().isEmpty()) {
-            areasForGrowth.addAll(profile.getPotentialGaps());
-        }
-        
-        String careerStage = "junior";
-        if (experienceLevel.equals("Senior")) careerStage = "senior";
-        else if (experienceLevel.equals("Mid")) careerStage = "mid";
-        
-        // Generate coding style assessment from vibe coding metrics
-        AnalysisResult.CodingStyleAssessment codingStyleAssessment = null;
-        if (profile.getVibeCodingMetrics() != null) {
-            AggregatedProfileDTO.VibeCodingMetrics vibeMetrics = profile.getVibeCodingMetrics();
-            List<String> styleStrengths = new ArrayList<>();
-            List<String> styleAreasToImprove = new ArrayList<>();
-            
-            // Add disciplined signals as strengths
-            if (vibeMetrics.getCommonDisciplinedSignals() != null) {
-                styleStrengths.addAll(vibeMetrics.getCommonDisciplinedSignals());
-            }
-            
-            // Add vibe signals as areas to improve
-            if (vibeMetrics.getCommonVibeSignals() != null) {
-                styleAreasToImprove.addAll(vibeMetrics.getCommonVibeSignals());
-            }
-            
-            String professionalFeedback = generateProfessionalFeedback(vibeMetrics, profile);
-            
-            codingStyleAssessment = AnalysisResult.CodingStyleAssessment.builder()
-                .style(vibeMetrics.getOverallCodingStyle())
-                .strengths(styleStrengths)
-                .areasToImprove(styleAreasToImprove)
-                .professionalFeedback(professionalFeedback)
-                .build();
-        }
-        
-        AnalysisResult.DeveloperProfile developerProfile = AnalysisResult.DeveloperProfile.builder()
-            .experienceLevel(experienceLevel)
-            .primaryLanguages(new ArrayList<>(profile.getLanguages()))
-            .primaryFrameworks(new ArrayList<>(profile.getFrameworks()))
-            .projectTypes(profile.getProjectTypes())
-            .specialization(specialization)
-            .codingStyleAssessment(codingStyleAssessment)
-            .skillDistribution(skillDistribution)
-            .strengths(strengths)
-            .areasForGrowth(areasForGrowth)
-            .careerStage(careerStage)
-            .build();
-        
-        return AnalysisResult.builder()
-            .userId(profile.getUserId())
-            .skillAnalysis(skillAnalysis)
-            .recommendations(allRecommendations)
-            .enhancedRecommendations(enhancedRecommendations)
-            .developerProfile(developerProfile)
-            .totalRepositoriesAnalyzed(profile.getTotalProjects())
-            .build();
-    }
-    
-    private List<String> generateCareerAdvice(AggregatedProfileDTO profile) {
-        List<String> advice = new ArrayList<>();
-        
-        if (profile.getLanguages().size() >= 3) {
-            advice.add("You're versatile with multiple languages. Consider deepening expertise in one to become a specialist.");
-        }
-        if (profile.getFrameworks().isEmpty()) {
-            advice.add("Learning a popular framework would accelerate your development speed and marketability.");
-        }
-        if (profile.getPotentialGaps() != null && profile.getPotentialGaps().contains("Testing/TDD")) {
-            advice.add("Adding testing skills will make you more valuable to any team and improve code quality.");
-        }
-        if (profile.getTotalProjects() < 5) {
-            advice.add("Building more projects will strengthen your portfolio and provide practical experience.");
-        } else if (profile.getTotalProjects() >= 10) {
-            advice.add("Great project portfolio! Consider contributing to open source to expand your network.");
-        }
-        
-        if (advice.isEmpty()) {
-            advice.add("Keep building projects and learning new technologies to advance your career.");
-        }
-        
-        return advice;
-    }
-    
-    private String generateNextMilestone(AggregatedProfileDTO profile) {
-        Map<String, Integer> complexityDist = profile.getComplexityDistribution();
-        int advanced = complexityDist.getOrDefault("ADVANCED", 0);
-        int intermediate = complexityDist.getOrDefault("INTERMEDIATE", 0);
-        
-        if (advanced == 0) {
-            return "Build an advanced project with complex architecture (microservices, distributed systems)";
-        } else if (intermediate < 3) {
-            return "Expand your portfolio with more intermediate-level projects";
-        } else if (profile.getPotentialGaps() != null && !profile.getPotentialGaps().isEmpty()) {
-            return "Learn " + profile.getPotentialGaps().get(0) + " to round out your skill set";
-        }
-        return "Consider mentoring others or contributing to major open source projects";
-    }
-    
-    private List<String> getDefaultResourcesForSkill(String skill) {
-        Map<String, List<String>> resourceMap = Map.of(
-            "Testing/TDD", List.of("JUnit Documentation", "Testing Spring Boot Applications", "TDD by Example book"),
-            "CI/CD Pipelines", List.of("GitHub Actions Documentation", "Jenkins Tutorial", "GitLab CI/CD Guide"),
-            "Containerization/Docker", List.of("Docker Official Tutorial", "Docker for Developers", "Kubernetes Basics"),
-            "Frontend Development", List.of("React Documentation", "Vue.js Guide", "Frontend Masters courses"),
-            "Backend Development", List.of("Spring Boot Guide", "Node.js Documentation", "Backend Architecture Patterns"),
-            "Database Design", List.of("SQL Tutorial", "MongoDB University", "Database Design Fundamentals")
-        );
-        return resourceMap.getOrDefault(skill, List.of("Online tutorials", "Official documentation", "Practice projects"));
-    }
-    
-    /**
-     * Generate professional feedback about coding style
-     * IMPORTANT: Never say "vibe coder" - use professional language
-     */
-    private String generateProfessionalFeedback(AggregatedProfileDTO.VibeCodingMetrics vibeMetrics, AggregatedProfileDTO profile) {
-        int avgVibeScore = vibeMetrics.getAvgVibeScore();
-        int structuredRepos = vibeMetrics.getStructuredRepos();
-        int rapidRepos = vibeMetrics.getRapidPrototypingRepos();
-        int totalRepos = profile.getTotalProjects();
-        
-        StringBuilder feedback = new StringBuilder();
-        
-        if (avgVibeScore <= 30) {
-            feedback.append("Your repositories demonstrate a strong engineering-focused approach with excellent documentation and testing practices. ");
-            feedback.append("This attention to code quality and maintainability is highly valued in professional environments. ");
-            feedback.append("Out of ").append(totalRepos).append(" projects, ").append(structuredRepos).append(" show exemplary structure.");
-        } else if (avgVibeScore <= 50) {
-            feedback.append("Your development approach shows a healthy balance between rapid feature delivery and engineering discipline. ");
-            if (structuredRepos > 0) {
-                feedback.append("You have ").append(structuredRepos).append(" well-structured project(s) that demonstrate solid engineering practices.");
-            }
-        } else if (avgVibeScore <= 70) {
-            feedback.append("Your repositories suggest a rapid prototyping approach with emphasis on feature building. ");
-            if (rapidRepos > 0) {
-                feedback.append("Around ").append(rapidRepos).append(" of your ").append(totalRepos).append(" projects could benefit from improved documentation. ");
-            }
-            feedback.append("Consider investing more time in documentation, testing, and project structure to enhance long-term maintainability.");
-        } else {
-            feedback.append("The repositories indicate a move-fast development style with limited emphasis on documentation and testing. ");
-            feedback.append("While this approach can be effective for quick prototypes, adding structured README files, tests, and CI/CD pipelines ");
-            feedback.append("will significantly improve your professional profile and project quality.");
-        }
-        
-        return feedback.toString();
-    }
-    
     public AnalysisResponse getLatestAnalysis(String userId) {
         return analysisResultRepository.findFirstByUserIdOrderByCreatedAtDesc(userId)
             .map(this::mapToResponse)
@@ -874,6 +494,30 @@ public class AnalysisService {
         return analysisResultRepository.findById(analysisId)
             .map(this::mapToResponse)
             .orElseThrow(() -> new RuntimeException("Analysis not found"));
+    }
+    
+    /**
+     * Delete a specific analysis by ID
+     */
+    public void deleteAnalysis(String userId, String analysisId) {
+        AnalysisResult analysis = analysisResultRepository.findById(analysisId)
+            .orElseThrow(() -> new RuntimeException("Analysis not found"));
+        
+        // Verify ownership
+        if (!analysis.getUserId().equals(userId)) {
+            throw new RuntimeException("Unauthorized to delete this analysis");
+        }
+        
+        analysisResultRepository.deleteById(analysisId);
+        log.info("Deleted analysis {} for user {}", analysisId, userId);
+    }
+    
+    /**
+     * Delete all analyses for a user
+     */
+    public void deleteAllAnalyses(String userId) {
+        analysisResultRepository.deleteByUserId(userId);
+        log.info("Deleted all analyses for user {}", userId);
     }
     
     private AnalysisResponse mapToResponse(AnalysisResult result) {

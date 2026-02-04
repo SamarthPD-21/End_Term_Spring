@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, User, Github, Zap, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, User, Github, Zap, Menu, X, ChevronRight, Brain, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -15,6 +15,7 @@ export function Navbar() {
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/analysis', label: 'Analysis' },
+    { href: '/intelligence', label: 'Intelligence', icon: <Brain size={16} /> },
   ];
 
   const isActiveLink = (href: string) => pathname === href;
@@ -60,11 +61,12 @@ export function Navbar() {
                     href={link.href}
                     className="relative px-4 py-2 group"
                   >
-                    <span className={`relative z-10 transition-colors ${
+                    <span className={`relative z-10 transition-colors flex items-center gap-1.5 ${
                       isActiveLink(link.href)
                         ? 'text-purple-600 font-medium'
                         : 'text-gray-600 dark:text-gray-300 group-hover:text-purple-600 dark:group-hover:text-purple-400'
                     }`}>
+                      {'icon' in link && link.icon}
                       {link.label}
                     </span>
                     {isActiveLink(link.href) && (
@@ -129,6 +131,16 @@ export function Navbar() {
                   >
                     <LogOut size={18} />
                   </motion.button>
+                  <Link href="/settings">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="p-2 text-gray-500 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      title="Settings"
+                    >
+                      <Settings size={18} />
+                    </motion.button>
+                  </Link>
                 </div>
               </>
             ) : (
@@ -238,10 +250,27 @@ export function Navbar() {
                   ))}
 
                   {/* Logout */}
-                  <motion.button
+                  <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
+                  >
+                    <Link
+                      href="/settings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-between p-3 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Settings size={18} />
+                        Settings
+                      </span>
+                      <ChevronRight size={18} />
+                    </Link>
+                  </motion.div>
+                  <motion.button
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
                     onClick={() => {
                       logout();
                       setMobileMenuOpen(false);

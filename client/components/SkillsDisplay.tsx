@@ -311,7 +311,7 @@ export function SkillsDisplay({ skillAnalysis }: SkillsDisplayProps) {
           <div className="flex flex-wrap gap-2">
             {skillAnalysis.missingSkills.map((skill, idx) => (
               <motion.span
-                key={skill}
+                key={`${skill}-${idx}`}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.6 + idx * 0.1 }}
