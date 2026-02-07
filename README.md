@@ -19,7 +19,7 @@ GitUpskill is an AI-powered web application that analyzes a developer's GitHub p
 - **AI-Powered Skill Extraction** – Identifies technologies, frameworks, and experience levels
 - **Gap Analysis** – Detects missing skills and areas for improvement
 - **Personalized Learning Roadmap** – Generates actionable upskilling recommendations
-- **Token-Efficient AI Pipeline** – Hierarchical summarization for cost-effective LLM usage
+- **Deterministic Recommendation Engine** – Rule-based analysis without external AI dependencies
 - **Persistent Analysis History** – Stores and tracks user analysis results over time
 
 ---
@@ -33,7 +33,7 @@ GitUpskill is an AI-powered web application that analyzes a developer's GitHub p
                     ↓
 3. README files and repository metadata are extracted and summarized
                     ↓
-4. AI agent analyzes the summaries to infer skills, strengths, and gaps
+4. Recommendation engine analyzes the summaries to infer skills, strengths, and gaps
                     ↓
 5. System generates a structured upskilling roadmap for the user
 ```
@@ -63,8 +63,8 @@ GitUpskill is an AI-powered web application that analyzes a developer's GitHub p
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│   AI Analysis   │ ←── LLM API
-│     Service     │
+│ Recommendation  │ ←── Rule-based Engine
+│     Engine      │
 └────────┬────────┘
          ↓
 ┌─────────────────┐
@@ -91,11 +91,12 @@ GitUpskill is an AI-powered web application that analyzes a developer's GitHub p
 | **Spring Security** | JWT + OAuth authentication |
 | **MongoDB** | NoSQL document database |
 
-### AI Layer
+### Recommendation Engine
 | Technology | Purpose |
 |------------|---------|
-| **LLM API** | Prompt-driven skill analysis |
-| **Hierarchical Summarization** | Token-efficient processing pipeline |
+| **Rule-Based Engine** | Deterministic skill analysis |
+| **Skill Ontology Graph** | Skill dependency relationships |
+| **Role Templates** | Gap analysis and recommendations |
 
 ---
 
@@ -160,15 +161,16 @@ Instead of sending raw READMEs to the LLM:
 ```
 *→ Only this condensed summary goes to the AI agent*
 
-### 🤖 AI Analysis Service
+### 🤖 Recommendation Engine
 
-**Prompt Strategy:**
-- Prompt templates stored in database
-- Strict input/output JSON schema
+**Rule-Based Analysis:**
+- Skill ontology graph for understanding relationships
+- Predefined role templates for gap analysis
+- Weighted scoring algorithm for prioritization
 - Deterministic, reproducible results
 
-**Example Prompt Intent:**
-> "Based on the following developer profile summary, classify skills into strong, moderate, and weak, and recommend what to learn next."
+**How It Works:**
+> The engine uses skill dependency graphs and role templates to classify skills into strong, moderate, and weak categories, then generates personalized learning recommendations based on the user's target role.
 
 ---
 
@@ -181,8 +183,7 @@ Instead of sending raw READMEs to the LLM:
 | `users` | User profiles and authentication data |
 | `repositories` | Cached repository metadata |
 | `repo_summaries` | Preprocessed README summaries |
-| `analysis_results` | AI-generated skill analysis |
-| `prompt_templates` | Configurable AI prompts |
+| `analysis_results` | Skill analysis results |
 
 ---
 
@@ -190,21 +191,21 @@ Instead of sending raw READMEs to the LLM:
 
 | Aspect | Implementation |
 |--------|----------------|
-| **Token Optimization** | Hierarchical summarization reduces LLM costs by ~80% |
+| **No External AI Dependencies** | Deterministic rule-based engine for cost-free analysis |
 | **Modular Architecture** | Clear separation of concerns across service layers |
 | **Secure Integration** | OAuth 2.0 with encrypted token storage |
-| **Caching Strategy** | Persistent storage of GitHub and AI analysis results |
+| **Caching Strategy** | Persistent storage of GitHub and analysis results |
 | **Scalable Design** | Stateless backend with MongoDB for horizontal scaling |
 
 ---
 
-## ✅ AI Agent Capabilities
+## ✅ Recommendation Engine Capabilities
 
 ### What It CAN Do
 - ✔️ Skill inference from README analysis
 - ✔️ Tech stack identification
-- ✔️ Learning gap detection
-- ✔️ Personalized roadmap suggestions
+- ✔️ Learning gap detection using skill ontology
+- ✔️ Personalized roadmap suggestions based on role templates
 - ✔️ Experience level estimation
 
 ### What It CANNOT Do (by design)
@@ -212,7 +213,7 @@ Instead of sending raw READMEs to the LLM:
 - ✘ Code style scoring
 - ✘ Performance benchmarking
 
-> *These limitations are intentional – the platform focuses on ethical, metadata-based analysis without accessing proprietary source code.*
+> *The platform uses a deterministic, rule-based approach focusing on ethical, metadata-based analysis without accessing proprietary source code or requiring external AI services.*
 
 ---
 
@@ -220,10 +221,9 @@ Instead of sending raw READMEs to the LLM:
 
 ### Prerequisites
 - **Node.js 18+** - [Download](https://nodejs.org/)
-- **Java 17+** - [Download](https://adoptium.net/)
+- **Java 21+** - [Download](https://adoptium.net/)
 - **MongoDB** - [Install locally](https://www.mongodb.com/docs/manual/installation/) or use [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
 - **GitHub OAuth App** - Required for GitHub login
-- **OpenAI API Key** - Required for AI analysis
 
 ---
 
@@ -241,14 +241,7 @@ Instead of sending raw READMEs to the LLM:
 5. Copy the **Client ID**
 6. Click **"Generate a new client secret"** and copy it
 
-#### 1.2 Get an OpenAI API Key
-
-1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Sign in or create an account
-3. Click **"Create new secret key"**
-4. Copy the API key (starts with `sk-`)
-
-#### 1.3 Generate a JWT Secret
+#### 1.2 Generate a JWT Secret
 
 Run this command to generate a secure secret:
 ```bash
@@ -297,10 +290,6 @@ JWT_SECRET=your-super-secure-jwt-secret-key-at-least-32-chars
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
-
-# OpenAI
-OPENAI_API_KEY=sk-your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
 ```
 
 **Run the backend:**
@@ -359,8 +348,6 @@ The app will be available at `http://localhost:3000`
 | `GITHUB_CLIENT_ID` | Both | GitHub OAuth App Client ID |
 | `GITHUB_CLIENT_SECRET` | Backend | GitHub OAuth App Secret |
 | `GITHUB_REDIRECT_URI` | Backend | OAuth callback URL |
-| `OPENAI_API_KEY` | Backend | OpenAI API key |
-| `OPENAI_MODEL` | Backend | LLM model (default: gpt-4o-mini) |
 | `NEXT_PUBLIC_API_URL` | Frontend | Backend API URL |
 
 ---
@@ -392,7 +379,9 @@ GitUpskill/
 │   │       ├── repository/    # MongoDB repositories
 │   │       ├── model/         # Entity classes
 │   │       ├── config/        # Security & OAuth config
-│   │       └── ai/            # AI integration layer
+│   │       ├── engine/        # Recommendation engine
+│   │       ├── dto/           # Data transfer objects
+│   │       └── security/      # JWT & auth filters
 │   └── src/main/resources/
 │       └── application.properties
 │
